@@ -39,6 +39,7 @@ import android.provider.AlarmClock;
 import android.provider.CalendarContract;
 import android.provider.CalendarContract.Events;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.util.MathUtils;
 import android.util.TypedValue;
 import android.util.Log;
