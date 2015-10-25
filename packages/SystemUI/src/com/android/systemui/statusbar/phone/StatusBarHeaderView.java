@@ -952,7 +952,8 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
             int currentUserId = ActivityManager.getCurrentUser();
             mShowWeather = Settings.System.getInt(
                     resolver, Settings.System.STATUS_BAR_SHOW_WEATHER, 1) == 1;
-
+            updateVisibilities();
+            requestCaptureValues();
         }
     }
 }
