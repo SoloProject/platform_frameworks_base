@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2008 The Android Open Source Project
- * Copyright (C) 2015 The Pure Nexus Project
+ * Copyright (C) 2013 The CyanogenMod Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,6 +48,7 @@ import android.os.storage.IMountService;
 import android.os.storage.IMountShutdownObserver;
 import android.system.ErrnoException;
 import android.system.Os;
+import android.provider.Settings;
 import android.widget.ListView;
 
 import com.android.internal.telephony.ITelephony;
@@ -55,8 +56,6 @@ import com.android.server.pm.PackageManagerService;
 
 import android.util.Log;
 import android.view.WindowManager;
-import java.lang.reflect.Method;
-import dalvik.system.PathClassLoader;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -78,6 +77,7 @@ public final class ShutdownThread extends Thread {
     private static final int PACKAGE_MANAGER_STOP_PERCENT = 6;
     private static final int RADIO_STOP_PERCENT = 18;
     private static final int MOUNT_SERVICE_STOP_PERCENT = 20;
+
     private static final String SOFT_REBOOT = "soft_reboot";
 
     // length of vibration before shutting down
@@ -141,11 +141,11 @@ public final class ShutdownThread extends Thread {
     private static boolean isAdvancedRebootPossible(final Context context) {
         KeyguardManager km = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
         boolean keyguardLocked = km.inKeyguardRestrictedInputMode() && km.isKeyguardSecure();
-        boolean advancedRebootEnabled = context.getResources().getBoolean(
-            com.android.internal.R.bool.config_advanced_reboot);
+        boolean advancedRebootEnabled = Settings.Secure.getInt(context.getContentResolver(),
+            Settings.Secure.ADVANCED_REBOOT, 0) == 1;
         boolean isPrimaryUser = UserHandle.getCallingUserId() == UserHandle.USER_OWNER;
 
-        return advancedRebootEnabled && !mRebootSafeMode && !keyguardLocked && isPrimaryUser;
+        return advancedRebootEnabled && !keyguardLocked && isPrimaryUser;
     }
 
     static void shutdownInner(final Context context, boolean confirm) {
@@ -348,15 +348,11 @@ public final class ShutdownThread extends Thread {
                 pd.setIndeterminate(false);
             } else {
                 // Factory reset path. Set the dialog message accordingly.
-                pd.setTitle(context.getText(com.android.internal.R.string.reboot_title));
+                pd.setTitle(context.getText(com.android.internal.R.string.reboot_to_reset_title));
                 pd.setMessage(context.getText(
-                        com.android.internal.R.string.reboot_progress));
+                        com.android.internal.R.string.reboot_to_reset_message));
                 pd.setIndeterminate(true);
             }
-        } else if (mReboot) {
-            pd.setTitle(context.getText(com.android.internal.R.string.reboot_title));
-            pd.setMessage(context.getText(com.android.internal.R.string.reboot_progress));
-            pd.setIndeterminate(true);
         } else {
             pd.setTitle(context.getText(com.android.internal.R.string.power_off));
             pd.setMessage(context.getText(com.android.internal.R.string.shutdown_progress));
@@ -698,7 +694,6 @@ public final class ShutdownThread extends Thread {
      * @param reason reason for reboot
      */
     public static void rebootOrShutdown(final Context context, boolean reboot, String reason) {
-        deviceRebootOrShutdown(reboot, reason);
         if (reboot) {
             Log.i(TAG, "Rebooting, reason: " + reason);
             PowerManagerService.lowLevelReboot(reason);
@@ -723,30 +718,6 @@ public final class ShutdownThread extends Thread {
         // Shutdown power
         Log.i(TAG, "Performing low-level shutdown...");
         PowerManagerService.lowLevelShutdown();
-    }
-
-    private static void deviceRebootOrShutdown(boolean reboot, String reason) {
-        Class<?> cl;
-        PathClassLoader oemClassLoader = new PathClassLoader("/system/framework/oem-services.jar",
-            ClassLoader.getSystemClassLoader());
-        String deviceShutdownClassName = "com.qti.server.power.ShutdownOem";
-        try{
-            cl = Class.forName(deviceShutdownClassName);
-            Method m;
-            try {
-                m = cl.getMethod("rebootOrShutdown", new Class[] {boolean.class, String.class});
-                m.invoke(cl.newInstance(), reboot, reason);
-            } catch (NoSuchMethodException ex) {
-                Log.e(TAG, "rebootOrShutdown method not found in class "
-                        + deviceShutdownClassName);
-            } catch (Exception ex) {
-                Log.e(TAG, "Unknown exception hit while trying to invoke rebootOrShutdown");
-            }
-        } catch(ClassNotFoundException e) {
-            Log.e(TAG, "Unable to find class " + deviceShutdownClassName);
-        } catch (Exception e) {
-            Log.e(TAG, "Unknown exception while trying to invoke rebootOrShutdown");
-        }
     }
 
     private void uncrypt() {
